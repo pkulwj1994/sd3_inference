@@ -13,8 +13,7 @@ import pickle
 import numpy as np
 import torch
 import PIL.Image
-import dnnlib
-from torch_utils import distributed as dist
+import distributed as dist
 from inference_helper_func import load_sd3, sd3_sampler
 
 
@@ -148,7 +147,8 @@ def main(
     # Load models
     if dist.get_rank() == 0:
         dist.print0(f'Loading network from "{network_pkl}"...')
-    with dnnlib.util.open_url(network_pkl, verbose=(dist.get_rank() == 0)) as f:
+
+    with open(network_pkl, "wb") as f:
         G_ema = pickle.load(f)['ema'].to(device, dtype)
         # G_ema.disable_xformers_memory_efficient_attention()
         G_ema.eval().requires_grad_(False)
@@ -222,12 +222,3 @@ def main(
 
 if __name__ == "__main__":
     main()
-
-    # torchrun --standalone --nproc_per_node=1 /cpfs/user/weijian/code/onestep_SD3.5/generate_onestep_sd3.py \
-    # --init_timestep 0 \
-    # --text_prompts '/cpfs/user/weijian/code/onestep_SD3.5/prompts/parti_prompts.txt' \
-    # --repo_id '/cpfs/user/weijian/data/download/stabilityai/stable-diffusion-3.5-medium' \
-    # --outdir='/cpfs/user/weijian/evaluate/parti/sd3_onestep' \
-    # --seeds=0-2000 \
-    # --batch=32 \
-    # --network='/cpfs/user/weijian/logs/onestep_sd3/E01_ct/00002-aesthetics-glr1e-05-lr1e-05-initsigma0-gpus16-batch512-tmax980-fp32-method_DI-*-rlhfFalse-rmPS-rscale100.0-cfg4.5-l2scale0.0/network-snapshot-1.000000-000614.pkl'
