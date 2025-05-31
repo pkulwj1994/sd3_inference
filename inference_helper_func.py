@@ -355,4 +355,3 @@ def sd3_sampler(transformer, latents, contexts, gen_timesteps,  noise_scheduler,
     D_x = latents - sigmas* noise_pred
 
     return D_x.to(dtype)
-
