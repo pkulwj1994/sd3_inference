@@ -151,11 +151,6 @@ def main(
     G_ema.load_state_dict(torch.load(network_pkl))
     G_ema.eval().requires_grad_(False)
 
-    # with open(network_pkl, "wb") as f:
-    #     G_ema = pickle.load(f)['ema'].to(device, dtype)
-    #     # G_ema.disable_xformers_memory_efficient_attention()
-    #     G_ema.eval().requires_grad_(False)
-
     gc.collect(); torch.cuda.empty_cache()
 
     # Create output directory
