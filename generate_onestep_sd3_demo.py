@@ -148,10 +148,13 @@ def main(
     if dist.get_rank() == 0:
         dist.print0(f'Loading network from "{network_pkl}"...')
 
-    with open(network_pkl, "wb") as f:
-        G_ema = pickle.load(f)['ema'].to(device, dtype)
-        # G_ema.disable_xformers_memory_efficient_attention()
-        G_ema.eval().requires_grad_(False)
+    G_ema.load_state_dict(torch.load(network_pkl))
+    G_ema.eval().requires_grad_(False)
+
+    # with open(network_pkl, "wb") as f:
+    #     G_ema = pickle.load(f)['ema'].to(device, dtype)
+    #     # G_ema.disable_xformers_memory_efficient_attention()
+    #     G_ema.eval().requires_grad_(False)
 
     gc.collect(); torch.cuda.empty_cache()
 
