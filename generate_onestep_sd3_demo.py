@@ -132,9 +132,8 @@ def main(
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank()::dist.get_world_size()]
 
-    # Rank 0 goes first.
-    if dist.get_rank() != 0:
-        torch.distributed.barrier()
+    # wait for everyone
+    torch.distributed.barrier()
     
     ## load SD3.5 model
     G_ema, vae, noise_scheduler, text_encoder_one, text_encoder_two, text_encoder_three, tokenizer_one, tokenizer_two, tokenizer_three, image_processor = load_sd3(pretrained_model_name_or_path=repo_id, pretrained_vae_model_name_or_path=repo_id,
@@ -160,13 +159,11 @@ def main(
     output_dir = outdir
     dist.print0(f'Generating {len(seeds)} images to "{output_dir}"...')
 
-    # Rank 0 goes first.
-    if dist.get_rank() != 0:
-        torch.distributed.barrier()
+    # wait for every rank
+    torch.distributed.barrier()
     
     # Generate images
     for batch_seeds in tqdm.tqdm(rank_batches, unit='batch', disable=(dist.get_rank() != 0)):
-        torch.distributed.barrier()
         batch_size = len(batch_seeds)
         if batch_size == 0:
             continue
@@ -178,10 +175,10 @@ def main(
             actual_seeds = batch_seeds.tolist()
             
         rnd = StackedRandomGenerator(device, actual_seeds)
-        batch_captions = [captions[i] for i in batch_seeds]
+        batch_captions = [captions[i] for i in actual_seeds]
 
         # Generate latent vectors
-        latents = rnd.randn([len(batch_seeds), latent_img_channels, latent_resolution, latent_resolution], device=device, dtype=dtype)
+        latents = rnd.randn([len(actual_seeds), latent_img_channels, latent_resolution, latent_resolution], device=device, dtype=dtype)
         gen_timesteps = gen_timestep * torch.ones((len(batch_captions),), device=device, dtype=torch.float32)
 
         # Run generator
@@ -212,7 +209,7 @@ def main(
         images = (images * 255).clamp(0, 255).to(torch.uint8)
         images_np = images.permute(0, 2, 3, 1).cpu().numpy()
 
-        for seed, image_np, caption in zip(batch_seeds, images_np, batch_captions):
+        for seed, image_np, caption in zip(actual_seeds, images_np, batch_captions):
             subdir = os.path.join(output_dir, f'{seed//1000*1000:06d}') if subdirs else output_dir
             os.makedirs(subdir, exist_ok=True)
             
@@ -225,7 +222,8 @@ def main(
 
 
     dist.print0('Done.')
-    # torch.distributed.barrier()
+    # wait for everyone before close
+    torch.distributed.barrier()
 
 
 if __name__ == "__main__":
