@@ -164,7 +164,7 @@ def main(
             actual_seeds = batch_seeds.tolist()
             
         rnd = StackedRandomGenerator(device, actual_seeds)
-        batch_captions = [captions[i] for i in batch_seeds]
+        batch_captions = [captions[i] for i in actual_seeds]
 
         with torch.no_grad():
             images = pipe(prompt=batch_captions, **pipe_kwargs).images
