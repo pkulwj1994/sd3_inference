@@ -152,7 +152,7 @@ def main(
 
     # Generate images
     for batch_seeds in tqdm.tqdm(rank_batches, unit='batch', disable=(dist.get_rank() != 0)):
-        torch.distributed.barrier()
+        # torch.distributed.barrier()
         batch_size = len(batch_seeds)
         if batch_size == 0:
             continue
@@ -169,7 +169,7 @@ def main(
         with torch.no_grad():
             images = pipe(prompt=batch_captions, **pipe_kwargs).images
 
-        for seed, image, caption in zip(batch_seeds, images, batch_captions):
+        for seed, image, caption in zip(actual_seeds, images, batch_captions):
             subdir = os.path.join(output_dir, f'{seed//1000*1000:06d}') if subdirs else output_dir
             os.makedirs(subdir, exist_ok=True)
             
@@ -182,7 +182,15 @@ def main(
 
     torch.distributed.barrier()
     dist.print0('Done.')
-
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
 
 if __name__ == "__main__":
     main()
+    # torchrun --standalone --nproc_per_node=2 \
+    # generate_sd3_baseline.py --init_timestep 120 \
+    # --text_prompts 'prompts/parti_prompts.txt' \
+    # --repo_id 'stabilityai/stable-diffusion-3.5-medium' \
+    # --outdir='evaluate/parti_sd3/sd3_cfg4.5_steps40_512px' \
+    # --seeds=0-1631 --batch=8 --network='None' --enable_xformers=0 \
+    # --use_fp16=1 --out_resolution 512
