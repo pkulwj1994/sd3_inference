@@ -128,7 +128,8 @@ def main(
     captions = read_prompts(text_prompts)
 
     # Prepare seed batches
-    num_batches = ((len(seeds) - 1) // (max_batch_size * dist.get_world_size()) + 1) * dist.get_world_size()
+    seeds = seeds[0:len(captions)]
+    num_batches = len(seeds)//max_batch_size
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank()::dist.get_world_size()]
 
