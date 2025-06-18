@@ -128,11 +128,14 @@ def main(
     captions = read_prompts(text_prompts)
 
     # Prepare seed batches
-    num_batches = (len(seeds) - 1) // (max_batch_size * dist.get_world_size()) + 1
+    num_batches = ((len(seeds) - 1) // (max_batch_size * dist.get_world_size()) + 1) * dist.get_world_size()
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank()::dist.get_world_size()]
 
-
+    # Rank 0 goes first.
+    if dist.get_rank() != 0:
+        torch.distributed.barrier()
+    
     ## load SD3.5 model
     G_ema, vae, noise_scheduler, text_encoder_one, text_encoder_two, text_encoder_three, tokenizer_one, tokenizer_two, tokenizer_three, image_processor = load_sd3(pretrained_model_name_or_path=repo_id, pretrained_vae_model_name_or_path=repo_id,
                                                             device=device, weight_dtype=dtype, enable_xformers=enable_xformers,)
@@ -157,9 +160,15 @@ def main(
     output_dir = outdir
     dist.print0(f'Generating {len(seeds)} images to "{output_dir}"...')
 
+    # Rank 0 goes first.
+    if dist.get_rank() != 0:
+        torch.distributed.barrier()
+    
     # Generate images
     for batch_seeds in tqdm.tqdm(rank_batches, unit='batch', disable=(dist.get_rank() != 0)):
-        if not batch_seeds.numel():
+        torch.distributed.barrier()
+        batch_size = len(batch_seeds)
+        if batch_size == 0:
             continue
 
         # Prepare seeds and captions
@@ -216,6 +225,7 @@ def main(
 
 
     dist.print0('Done.')
+    torch.distributed.barrier()
 
 
 if __name__ == "__main__":
