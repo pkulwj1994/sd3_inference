@@ -221,9 +221,10 @@ def main(
                 f.write(caption)
 
 
-    dist.print0('Done.')
-    # wait for everyone before close
     torch.distributed.barrier()
+    dist.print0('Done.')
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":
