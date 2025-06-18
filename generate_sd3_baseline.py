@@ -129,13 +129,12 @@ def main(
     captions = read_prompts(text_prompts)
 
     # Prepare seed batches
-    num_batches = ((len(seeds) - 1) // (max_batch_size * dist.get_world_size()) + 1) * dist.get_world_size()
+    seeds = parse_int_list(args.seeds)[0:len(captions)]
+    num_batches = len(seeds)//args.batch
     all_batches = torch.as_tensor(seeds).tensor_split(num_batches)
     rank_batches = all_batches[dist.get_rank()::dist.get_world_size()]
 
-    # Rank 0 goes first.
-    if dist.get_rank() != 0:
-        torch.distributed.barrier()
+    torch.distributed.barrier()
 
     pipe = StableDiffusion3Pipeline.from_pretrained(repo_id, torch_dtype=torch.bfloat16)
     pipe_kwargs = dict(guidance_scale=4.5, num_inference_steps=40, )
@@ -146,13 +145,10 @@ def main(
     output_dir = outdir
     dist.print0(f'Generating {len(seeds)} images to "{output_dir}"...')
 
-    # Rank 0 goes first.
-    if dist.get_rank() != 0:
-        torch.distributed.barrier()
+    torch.distributed.barrier()
 
     # Generate images
     for batch_seeds in tqdm.tqdm(rank_batches, unit='batch', disable=(dist.get_rank() != 0)):
-        # torch.distributed.barrier()
         batch_size = len(batch_seeds)
         if batch_size == 0:
             continue
