@@ -225,7 +225,7 @@ def main(
 
 
     dist.print0('Done.')
-    torch.distributed.barrier()
+    # torch.distributed.barrier()
 
 
 if __name__ == "__main__":
