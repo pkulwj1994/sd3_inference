@@ -355,3 +355,29 @@ def sd3_sampler(transformer, latents, contexts, gen_timesteps,  noise_scheduler,
     D_x = latents - sigmas* noise_pred
 
     return D_x.to(dtype)
+
+def resample(images, t_renoises, transformer, noise_scheduler, prompt_embeds, pooled_prompt_embeds, dtype):
+    t_renoises = t_renoises + [999]
+    reno_noise = torch.randn_like(images)
+
+    print(t_renoises)
+
+    for i, item in enumerate(zip(t_renoises[:-1],t_renoises[1:])):
+        t, t_prev = item
+        t_idx = t * torch.ones(size=(images.shape[0],), dtype=torch.float32, device='cpu').long()
+        t_timesteps = noise_scheduler.timesteps[t_idx].to(device=images.device)
+        t_sigmas = get_sigmas(noise_scheduler, t_timesteps, n_dim=images.ndim, dtype=images.dtype)
+
+        t_idx_prev = t_prev * torch.ones(size=(images.shape[0],), dtype=torch.float32, device='cpu').long()
+        t_timesteps_prev = noise_scheduler.timesteps[t_idx_prev].to(device=images.device)
+        t_sigmas_prev = get_sigmas(noise_scheduler, t_timesteps_prev, n_dim=images.ndim, dtype=images.dtype)
+
+        if i ==0:
+            images, _ = sd3_add_noise(images=images, noise=reno_noise, timesteps=t_timesteps, noise_scheduler=noise_scheduler)
+        else:
+            pass
+
+        noise_pred = transformer(hidden_states=images, timestep=t_timesteps, encoder_hidden_states=prompt_embeds, pooled_projections=pooled_prompt_embeds, return_dict=False)[0].to(images.dtype)
+        images = images - (t_sigmas-t_sigmas_prev)* noise_pred
+
+    return images
