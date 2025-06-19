@@ -356,11 +356,17 @@ def sd3_sampler(transformer, latents, contexts, gen_timesteps,  noise_scheduler,
 
     return D_x.to(dtype)
 
-def resample(images, t_renoises, transformer, noise_scheduler, prompt_embeds, pooled_prompt_embeds, dtype):
+def resample(images, t_renoises, transformer, noise_scheduler, prompt_embeds, pooled_prompt_embeds, dtype, prompt_embeds_null=None, pooled_prompt_embeds_null=None):
     t_renoises = t_renoises + [999]
     reno_noise = torch.randn_like(images)
 
-    print(t_renoises)
+    B = images.shape[0]
+
+    if prompt_embeds_null is not None and pooled_prompt_embeds_null is not None:
+        images = torch.cat([images] * 2)
+        prompt_embeds = torch.cat([prompt_embeds, prompt_embeds_null])
+        pooled_prompt_embeds = torch.cat([pooled_prompt_embeds, pooled_prompt_embeds_null])
+
 
     for i, item in enumerate(zip(t_renoises[:-1],t_renoises[1:])):
         t, t_prev = item
@@ -378,6 +384,15 @@ def resample(images, t_renoises, transformer, noise_scheduler, prompt_embeds, po
             pass
 
         noise_pred = transformer(hidden_states=images, timestep=t_timesteps, encoder_hidden_states=prompt_embeds, pooled_projections=pooled_prompt_embeds, return_dict=False)[0].to(images.dtype)
-        images = images - (t_sigmas-t_sigmas_prev)* noise_pred
+        
+        if prompt_embeds_null is not None and pooled_prompt_embeds_null is not None:
+            noise_pred, noise_pred_null = noise_pred.chunk(2, dim=0)
+            noise_pred = noise_pred + 4.5*(noise_pred-noise_pred_null)
+        
+        images = images[:B] - (t_sigmas-t_sigmas_prev)[:B]* noise_pred[:B]
 
-    return images
+        if prompt_embeds_null is not None and pooled_prompt_embeds_null is not None:
+            images = torch.cat([images] * 2)
+
+
+    return images[:B]
